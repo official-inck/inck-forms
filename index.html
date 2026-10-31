@@ -88,21 +88,21 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 /* ---------- Field library ---------- */
 const FIELDS={
   name:{label:'Full name / नाम',type:'text',req:1},
-  relName:{label:"Father's / Husband's name",type:'text',req:1},
-  dob:{label:'Date of birth',type:'date',req:1},
-  gender:{label:'Gender',type:'select',options:['Male','Female','Other'],req:1},
+  relName:{label:"Father's / Husband's name / पिता / पति का नाम",type:'text',req:1},
+  dob:{label:'Date of birth / जन्म तिथि',type:'date',req:1},
+  gender:{label:'Gender / लिंग',type:'select',options:[['Male','Male / पुरुष'],['Female','Female / महिला'],['Other','Other / अन्य']],req:1},
   address:{label:'Address / पता',type:'textarea',req:1,full:1},
   district:{label:'District / जिला',type:'text',req:1},
   state:{label:'State / राज्य',type:'text',req:1},
-  pin:{label:'PIN code',type:'text',mode:'numeric',re:/^\d{6}$/,msg:'Enter 6 digits',req:1},
-  mobile:{label:'Mobile (10 digits)',type:'tel',re:/^[6-9]\d{9}$/,msg:'Enter a valid 10-digit mobile',req:1},
-  email:{label:'Email',type:'email',re:/^[^@\s]+@[^@\s]+\.[^@\s]+$/,msg:'Enter a valid email'},
-  aadhaar:{label:'Aadhaar no. (printed masked)',type:'text',mode:'numeric',re:/^\d{12}$/,msg:'Enter 12 digits'},
-  memberId:{label:'Membership / ID no.',type:'text'},
-  designation:{label:'Designation',type:'text',req:1},
+  pin:{label:'PIN code / पिन कोड',type:'text',mode:'numeric',re:/^\d{6}$/,msg:'Enter 6 digits',req:1},
+  mobile:{label:'Mobile (10 digits) / मोबाइल नंबर',type:'tel',re:/^[6-9]\d{9}$/,msg:'Enter a valid 10-digit mobile',req:1},
+  email:{label:'Email / ईमेल',type:'email',re:/^[^@\s]+@[^@\s]+\.[^@\s]+$/,msg:'Enter a valid email'},
+  aadhaar:{label:'Aadhaar no. / आधार नंबर (printed masked)',type:'text',mode:'numeric',re:/^\d{12}$/,msg:'Enter 12 digits'},
+  memberId:{label:'Membership / ID no. / सदस्यता क्रमांक',type:'text'},
+  designation:{label:'Designation / पदनाम',type:'text',req:1},
   post:{label:'Post / पद',type:'text'},
   place:{label:'Place / स्थान',type:'text',req:1},
-  photo:{label:'Passport size photo',type:'photo',req:1,full:1},
+  photo:{label:'Passport size photo / पासपोर्ट साइज फोटो',type:'photo',req:1,full:1},
   signature:{label:'Signature / हस्ताक्षर',type:'signature',req:1,full:1}
 };
 
@@ -268,7 +268,7 @@ function renderFields(){
   $('#fields').innerHTML=FORMS[current].fields.map(k=>{const f=FIELDS[k],lab=`<label for="f_${k}">${f.label}${f.req?' <span class="req">*</span>':''}</label>`;
     let ctl;
     if(f.type==='textarea')ctl=`<textarea id="f_${k}" data-k="${k}">${esc(data[k])}</textarea>`;
-    else if(f.type==='select')ctl=`<select id="f_${k}" data-k="${k}"><option value="">Select</option>${f.options.map(o=>`<option ${data[k]===o?'selected':''}>${o}</option>`).join('')}</select>`;
+    else if(f.type==='select')ctl=`<select id="f_${k}" data-k="${k}"><option value="">Select / चुनें</option>${f.options.map(([v,t])=>`<option value="${v}" ${data[k]===v?'selected':''}>${t}</option>`).join('')}</select>`;
     else if(f.type==='photo')ctl=`<div class="ph"><div class="thumb" id="thumb" style="${data.photo?`background-image:url('${data.photo}')`:''}"></div><div style="flex:1"><div class="row-btn" style="margin-top:0">
       <label class="btn ghost" style="margin:0;display:inline-block">📷 Camera<input type="file" accept="image/*" capture="user" class="f_photo" hidden></label>
       <label class="btn ghost" style="margin:0;display:inline-block">🖼️ Gallery<input type="file" accept="image/*" class="f_photo" hidden></label>
