@@ -36,6 +36,9 @@ textarea{min-height:64px;resize:vertical}
 .btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
 .btn.wa{background:#1fa855}
 .btn:disabled{opacity:.55}
+.fb{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px}
+.fb .fbnote{font-size:13px;color:var(--muted);margin:8px 0 0}
+a.btn{text-decoration:none;display:inline-block}
 .ph{display:flex;gap:12px;align-items:center}
 .ph .thumb{width:72px;height:90px;border:1px dashed var(--line);border-radius:8px;background:center/cover no-repeat}
 .pv{width:100%;overflow:hidden;margin-top:10px}
@@ -67,6 +70,16 @@ textarea{min-height:64px;resize:vertical}
     <div class="row-btn" style="margin-top:0">
       <button class="btn wa" id="waBtn" disabled>Preparing PDF…</button>
       <button class="btn ghost" id="pdfBtn">Download PDF</button>
+    </div>
+    <!-- Shown when the phone's browser can't share files directly (e.g. vivo browser) -->
+    <div class="fb" id="waFb" hidden>
+      <p style="margin:0 0 8px;font-weight:600">Send in 2 steps / 2 चरणों में भेजें</p>
+      <div class="row-btn" style="margin-top:0">
+        <button class="btn" id="fbDl" type="button">1. Download PDF</button>
+        <a class="btn wa" id="waOpen" target="_blank" rel="noopener">2. Open WhatsApp</a>
+      </div>
+      <p class="fbnote">In WhatsApp, tap 📎 → Document and choose the downloaded PDF.<br>WhatsApp में 📎 → Document दबाएँ और डाउनलोड की गई PDF चुनें।</p>
+      <p class="fbnote">Tip: for one-tap sharing, open this link in Chrome.</p>
     </div>
     <div class="pv" id="pv"></div>
   </div>
@@ -318,7 +331,7 @@ async function prepare(){
 $('#genBtn').onclick=async()=>{
   if(!validate())return;
   $('#pv').innerHTML=renderDoc(FORMS[current],data);
-  $('#outCard').hidden=false;
+  $('#outCard').hidden=false;$('#waFb').hidden=true;$('#fbDl').textContent='1. Download PDF';
   if(document.fonts)await document.fonts.ready;
   await new Promise(r=>{const im=$('#doc img');im.complete?r():im.onload=r;});
   fitText();fitPreview();$('#outCard').scrollIntoView({behavior:'smooth'});
@@ -332,10 +345,11 @@ $('#waBtn').onclick=async()=>{
   if(navigator.canShare&&navigator.canShare({files:[file]})){
     try{await navigator.share({files:[file],title:msg,text:msg});return;}catch(e){if(e.name==='AbortError')return;}
   }
-  cachedPdf.pdf.save(file.name);
-  setTimeout(()=>window.open(`https://wa.me/${WHATSAPP.replace(/\D/g,'')}?text=${encodeURIComponent(msg+' — PDF attached')}`,'_blank'),600);
-  alert('PDF downloaded. WhatsApp will open — attach the downloaded PDF and send.');
+  // No direct share: show two buttons. Each runs on its own tap, so browsers don't block opening WhatsApp.
+  $('#waOpen').href=`https://wa.me/${WHATSAPP.replace(/\D/g,'')}?text=${encodeURIComponent(msg+' — PDF attached')}`;
+  $('#waFb').hidden=false;$('#waFb').scrollIntoView({behavior:'smooth',block:'nearest'});
 };
+$('#fbDl').onclick=()=>{if(!cachedPdf)return;cachedPdf.pdf.save(cachedPdf.file.name);$('#fbDl').textContent='✓ Downloaded';};
 
 renderChips();renderFields();
 // load the form images in the background so Generate is instant
