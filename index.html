@@ -38,6 +38,7 @@ textarea{min-height:64px;resize:vertical}
 .btn:disabled{opacity:.55}
 .fb{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px}
 .fb .fbnote{font-size:13px;color:var(--muted);margin:8px 0 0}
+.fb .fbnote a{color:var(--accent)}
 a.btn{text-decoration:none;display:inline-block}
 .cam{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
 .cam[hidden]{display:none}
@@ -73,17 +74,19 @@ a.btn{text-decoration:none;display:inline-block}
   <div class="card" id="outCard" hidden>
     <div class="row-btn" style="margin-top:0">
       <button class="btn wa" id="waBtn" disabled>Preparing PDF…</button>
+      <button class="btn" id="emBtn" disabled>✉️ Email</button>
       <button class="btn ghost" id="pdfBtn">Download PDF</button>
     </div>
-    <!-- Shown when the phone's browser can't share files directly (e.g. vivo browser) -->
-    <div class="fb" id="waFb" hidden>
+    <!-- Two-step send: used for Email always (web pages can't attach files to emails),
+         and for WhatsApp when the browser can't share files directly (e.g. vivo browser) -->
+    <div class="fb" id="sendFb" hidden>
       <p style="margin:0 0 8px;font-weight:600">Send in 2 steps / 2 चरणों में भेजें</p>
       <div class="row-btn" style="margin-top:0">
         <button class="btn" id="fbDl" type="button">1. Download PDF</button>
-        <a class="btn wa" id="waOpen" target="_blank" rel="noopener">2. Open WhatsApp</a>
+        <a class="btn" id="fbOpen" rel="noopener"></a>
       </div>
-      <p class="fbnote">In WhatsApp, tap 📎 → Document and choose the downloaded PDF.<br>WhatsApp में 📎 → Document दबाएँ और डाउनलोड की गई PDF चुनें।</p>
-      <p class="fbnote">Tip: for one-tap sharing, open this link in Chrome.</p>
+      <p class="fbnote" id="fbNote"></p>
+      <p class="fbnote" id="fbTip"></p>
     </div>
     <div class="pv" id="pv"></div>
   </div>
@@ -100,6 +103,8 @@ a.btn{text-decoration:none;display:inline-block}
 <script>
 /* ====== SETTINGS: your WhatsApp number with country code, e.g. '919876543210' ====== */
 const WHATSAPP='919588254374';
+/* ====== Email address the Email button sends to ====== */
+const EMAIL_TO='official.inck@gmail.com';
 /* ====== Organisation details printed on the forms by default ====== */
 const OFFICE={
   address:'2 B 16 Shanti Nagar, Hiran Magri Sector 5, Behind Sunrise Hospital, Udaipur 313002',
@@ -374,14 +379,14 @@ async function buildPdf(){
   return {pdf,file:new File([pdf.output('blob')],fileBase()+'.pdf',{type:'application/pdf'})};
 }
 async function prepare(){
-  const wa=$('#waBtn');cachedPdf=null;wa.disabled=true;wa.textContent='Preparing PDF…';
-  try{cachedPdf=await buildPdf();wa.disabled=false;wa.textContent='Share on WhatsApp';}
+  const wa=$('#waBtn');cachedPdf=null;wa.disabled=true;$('#emBtn').disabled=true;wa.textContent='Preparing PDF…';
+  try{cachedPdf=await buildPdf();wa.disabled=false;$('#emBtn').disabled=false;wa.textContent='Share on WhatsApp';}
   catch(e){wa.textContent='PDF failed — use Download';console.error(e);}
 }
 $('#genBtn').onclick=async()=>{
   if(!validate())return;
   $('#pv').innerHTML=renderDoc(FORMS[current],data);
-  $('#outCard').hidden=false;$('#waFb').hidden=true;$('#fbDl').textContent='1. Download PDF';
+  $('#outCard').hidden=false;$('#sendFb').hidden=true;$('#fbDl').textContent='1. Download PDF';
   if(document.fonts)await document.fonts.ready;
   await new Promise(r=>{const im=$('#doc img');im.complete?r():im.onload=r;});
   fitText();fitPreview();$('#outCard').scrollIntoView({behavior:'smooth'});
@@ -391,14 +396,33 @@ window.addEventListener('resize',fitPreview);
 $('#pdfBtn').onclick=async()=>{try{(cachedPdf||await buildPdf()).pdf.save(fileBase()+'.pdf');}catch(e){alert('Could not create PDF: '+e.message);}};
 $('#waBtn').onclick=async()=>{
   if(!cachedPdf)return;
-  const msg=`${FORMS[current].title} form – ${data.name||''}${data.mobile?' ('+data.mobile+')':''}`,file=cachedPdf.file;
+  const msg=sendMsg(),file=cachedPdf.file;
   if(navigator.canShare&&navigator.canShare({files:[file]})){
     try{await navigator.share({files:[file],title:msg,text:msg});return;}catch(e){if(e.name==='AbortError')return;}
   }
   // No direct share: show two buttons. Each runs on its own tap, so browsers don't block opening WhatsApp.
-  $('#waOpen').href=`https://wa.me/${WHATSAPP.replace(/\D/g,'')}?text=${encodeURIComponent(msg+' — PDF attached')}`;
-  $('#waFb').hidden=false;$('#waFb').scrollIntoView({behavior:'smooth',block:'nearest'});
+  showSend('wa');
 };
+$('#emBtn').onclick=()=>{if(cachedPdf)showSend('email');};
+
+const sendMsg=()=>`${FORMS[current].title} form – ${data.name||''}${data.mobile?' ('+data.mobile+')':''}`;
+function showSend(kind){
+  const msg=sendMsg(),open=$('#fbOpen'),enc=encodeURIComponent;
+  if(kind==='wa'){
+    open.className='btn wa';open.textContent='2. Open WhatsApp';open.target='_blank';
+    open.href=`https://wa.me/${WHATSAPP.replace(/\D/g,'')}?text=${enc(msg+' — PDF attached')}`;
+    $('#fbNote').innerHTML='In WhatsApp, tap 📎 → Document and choose the downloaded PDF.<br>WhatsApp में 📎 → Document दबाएँ और डाउनलोड की गई PDF चुनें।';
+    $('#fbTip').textContent='Tip: for one-tap sharing, open this link in Chrome.';
+  }else{
+    const body=`Please find my filled ${FORMS[current].title} form attached.\r\n\r\nName: ${data.name||''}${data.mobile?'\r\nMobile: '+data.mobile:''}`;
+    open.className='btn';open.textContent='2. Open email';open.removeAttribute('target');
+    open.href=`mailto:${EMAIL_TO}?subject=${enc(msg)}&body=${enc(body)}`;
+    const gmail=`https://mail.google.com/mail/?view=cm&fs=1&to=${enc(EMAIL_TO)}&su=${enc(msg)}&body=${enc(body)}`;
+    $('#fbNote').innerHTML=`The email opens addressed to <b>${esc(EMAIL_TO)}</b>. Tap 📎 Attach, choose the downloaded PDF, and send.<br>ईमेल में 📎 Attach दबाएँ, डाउनलोड की गई PDF चुनें और भेजें।`;
+    $('#fbTip').innerHTML=`Nothing opened? <a href="${gmail}" target="_blank" rel="noopener">Use Gmail in the browser</a>.`;
+  }
+  $('#sendFb').hidden=false;$('#sendFb').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
 $('#fbDl').onclick=()=>{if(!cachedPdf)return;cachedPdf.pdf.save(cachedPdf.file.name);$('#fbDl').textContent='✓ Downloaded';};
 
 renderChips();renderFields();
