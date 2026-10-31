@@ -16,7 +16,7 @@ Live: https://official-inck.github.io/inck-forms/
 
 ## Common changes (all in `index.html`)
 
-- **WhatsApp number** – `const WHATSAPP = '91XXXXXXXXXX'` near the top of the script.
+- **WhatsApp number** – `const WHATSAPP='919588254374'` near the top of the script.
 - **Office address / helpline / email** – the `OFFICE` block just below it.
 - **Replacing a form design** – overwrite the image in `images/` with one of the same size and layout; the text positions stay correct.
 - **Moving a field** – in the `FORMS` block, each entry has `x, y, w, h` in the image's own pixels.
