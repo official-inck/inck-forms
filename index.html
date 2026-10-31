@@ -39,6 +39,10 @@ textarea{min-height:64px;resize:vertical}
 .fb{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px}
 .fb .fbnote{font-size:13px;color:var(--muted);margin:8px 0 0}
 a.btn{text-decoration:none;display:inline-block}
+.cam{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:16px;z-index:10}
+.cam[hidden]{display:none}
+.cam .box{background:var(--card);border-radius:14px;padding:14px;width:100%;max-width:420px}
+.cam video{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:10px;background:#000;transform:scaleX(-1);display:block}
 .ph{display:flex;gap:12px;align-items:center}
 .ph .thumb{width:72px;height:90px;border:1px dashed var(--line);border-radius:8px;background:center/cover no-repeat}
 .pv{width:100%;overflow:hidden;margin-top:10px}
@@ -84,6 +88,14 @@ a.btn{text-decoration:none;display:inline-block}
     <div class="pv" id="pv"></div>
   </div>
 </div>
+
+<!-- Laptop webcam window (phones use their own camera app instead) -->
+<div class="cam" id="camModal" hidden><div class="box">
+  <p style="margin:0 0 10px;font-weight:600">Take photo / फोटो लें</p>
+  <video id="camVideo" playsinline muted></video>
+  <div class="err" id="camErr"></div>
+  <div class="row-btn"><button class="btn" id="camSnap" type="button">📸 Capture</button><button class="btn ghost" id="camCancel" type="button">Cancel</button></div>
+</div></div>
 
 <script>
 /* ====== SETTINGS: your WhatsApp number with country code, e.g. '919876543210' ====== */
@@ -283,7 +295,7 @@ function renderFields(){
     if(f.type==='textarea')ctl=`<textarea id="f_${k}" data-k="${k}">${esc(data[k])}</textarea>`;
     else if(f.type==='select')ctl=`<select id="f_${k}" data-k="${k}"><option value="">Select / चुनें</option>${f.options.map(([v,t])=>`<option value="${v}" ${data[k]===v?'selected':''}>${t}</option>`).join('')}</select>`;
     else if(f.type==='photo')ctl=`<div class="ph"><div class="thumb" id="thumb" style="${data.photo?`background-image:url('${data.photo}')`:''}"></div><div style="flex:1"><div class="row-btn" style="margin-top:0">
-      <label class="btn ghost" style="margin:0;display:inline-block">📷 Camera<input type="file" accept="image/*" capture="user" class="f_photo" hidden></label>
+      <button type="button" class="btn ghost" id="camBtn">📷 Camera</button><input type="file" accept="image/*" capture="user" class="f_photo" id="camInput" hidden>
       <label class="btn ghost" style="margin:0;display:inline-block">🖼️ Gallery<input type="file" accept="image/*" class="f_photo" hidden></label>
       </div><div style="font-size:12px;color:var(--muted);margin-top:6px" id="phMsg">${data.photo?'Photo added ✓':'Take a photo or pick one from your gallery'}</div></div></div>`;
     else if(f.type==='signature')ctl=`<div class="sigbox"><canvas id="sigCv"></canvas><span class="hint">${data.signature?'Signature saved — draw again to replace':'Sign here with finger or mouse'}</span></div><div class="row-btn"><button class="btn ghost" type="button" id="sigClear">Clear signature</button></div>`;
@@ -293,12 +305,50 @@ function renderFields(){
   document.querySelectorAll('.f_photo').forEach(inp=>inp.onchange=async e=>{
     const f=e.target.files[0],msg=$('#phMsg');if(!f)return;
     msg.style.color='';msg.textContent='Loading photo…';
-    try{data.photo=await shrink(f);$('#thumb').style.backgroundImage=`url('${data.photo}')`;msg.textContent='Photo added ✓';}
+    try{setPhoto(await shrink(f));}
     catch(err){msg.style.color='var(--err)';msg.textContent='This photo could not be read. Try another photo, or take a screenshot of it and upload that.';}
     e.target.value='';
   });
+  const cb=$('#camBtn');if(cb)cb.onclick=()=>useNativeCam()?$('#camInput').click():openCam();
   const cv=$('#sigCv');if(cv){const clear=initSig(cv);$('#sigClear').onclick=clear;}
 }
+function setPhoto(url){
+  data.photo=url;$('#thumb').style.backgroundImage=`url('${url}')`;
+  const m=$('#phMsg');m.style.color='';m.textContent='Photo added ✓';
+}
+
+/* ---------- Camera ----------
+   Phones: open the phone's camera app (file input with capture).
+   Laptops: that hint is ignored there, so show a live webcam window instead. */
+let camStream=null;
+const useNativeCam=()=>matchMedia('(pointer:coarse)').matches||/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia);
+async function openCam(){
+  const v=$('#camVideo'),e=$('#camErr');e.textContent='';$('#camSnap').disabled=true;$('#camModal').hidden=false;
+  try{
+    camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:1280},height:{ideal:960}},audio:false});
+    if($('#camModal').hidden){closeCam();return;}
+    v.srcObject=camStream;await v.play();$('#camSnap').disabled=false;
+  }catch(err){
+    e.textContent=err.name==='NotAllowedError'?'Camera permission was blocked. Allow the camera from the icon in the address bar and try again, or use Gallery.'
+      :err.name==='NotFoundError'?'No camera found on this device. Use Gallery instead.'
+      :'Could not start the camera. Close other apps using it, or use Gallery.';
+  }
+}
+function closeCam(){
+  if(camStream)camStream.getTracks().forEach(t=>t.stop());
+  camStream=null;$('#camVideo').srcObject=null;$('#camModal').hidden=true;
+}
+$('#camSnap').onclick=()=>{
+  // Crop the centre to passport shape (4:5), same area the preview shows
+  const v=$('#camVideo'),W=v.videoWidth,H=v.videoHeight;if(!W)return;
+  let cw=W,ch=Math.round(W*5/4);if(ch>H){ch=H;cw=Math.round(H*4/5);}
+  const s=Math.min(1,700/ch),c=document.createElement('canvas');c.width=Math.round(cw*s);c.height=Math.round(ch*s);
+  c.getContext('2d').drawImage(v,(W-cw)/2,(H-ch)/2,cw,ch,0,0,c.width,c.height);
+  setPhoto(c.toDataURL('image/jpeg',0.88));closeCam();
+};
+$('#camCancel').onclick=closeCam;
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#camModal').hidden)closeCam();});
+
 function validate(){
   let ok=true;
   for(const k of FORMS[current].fields){const f=FIELDS[k],v=data[k],e=$('#e_'+k);e.textContent='';
